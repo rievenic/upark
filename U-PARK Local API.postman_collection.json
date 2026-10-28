@@ -1,0 +1,45 @@
+{
+  "info": {
+    "name": "U-PARK Local API",
+    "description": "Requests for the U-PARK PHP JSON API. Run in order: read endpoints, create reservation, update it, then cancel it. Uses a real local U-PARK database.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost/upark/api.php" },
+    { "key": "slot_id", "value": "" },
+    { "key": "reservation_id", "value": "" },
+    { "key": "custom_key", "value": "DemoPass1234" }
+  ],
+  "item": [
+    {
+      "name": "GET Events",
+      "request": { "method": "GET", "url": "{{base_url}}?resource=events" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('Response contains events array', () => pm.expect(pm.response.json().data).to.be.an('array'));" ] } }]
+    },
+    {
+      "name": "GET Available Slots (selects first slot for later requests)",
+      "request": { "method": "GET", "url": "{{base_url}}?resource=slots&status=available" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "const slots = pm.response.json().data;", "pm.test('Response contains slots array', () => pm.expect(slots).to.be.an('array'));", "if (slots.length) { pm.collectionVariables.set('slot_id', slots[0].id); }", "pm.test('At least one slot is available for the create/update/cancel demo', () => pm.expect(slots.length).to.be.above(0));"] } }]
+    },
+    {
+      "name": "GET Parking Summary",
+      "request": { "method": "GET", "url": "{{base_url}}?resource=summary" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('Summary has total and available counts', () => { const data = pm.response.json().data; pm.expect(data).to.have.property('total'); pm.expect(data).to.have.property('available'); });"] } }]
+    },
+    {
+      "name": "POST Create Reservation",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"driver_name\": \"Postman Demo Driver\",\n  \"plate_number\": \"TEST 123\",\n  \"event_id\": null,\n  \"slot_id\": {{slot_id}},\n  \"custom_key\": \"{{custom_key}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{base_url}}?resource=reservations" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 201 created', () => pm.response.to.have.status(201));", "const data = pm.response.json().data;", "pm.test('Response includes reservation id and code', () => { pm.expect(data.id).to.be.a('number'); pm.expect(data.reservation_code).to.match(/^UPARK-/); });", "pm.collectionVariables.set('reservation_id', data.id);"] } }]
+    },
+    {
+      "name": "PUT Update Reservation",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"cancellation_key\": \"{{custom_key}}\",\n  \"driver_name\": \"Postman Demo Driver Updated\",\n  \"plate_number\": \"TEST 456\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{base_url}}?resource=reservations&id={{reservation_id}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200 updated', () => pm.response.to.have.status(200));", "pm.test('Updated driver name is returned', () => pm.expect(pm.response.json().data.driver_name).to.eql('Postman Demo Driver Updated'));"] } }]
+    },
+    {
+      "name": "DELETE Cancel Reservation",
+      "request": { "method": "DELETE", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"cancellation_key\": \"{{custom_key}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{base_url}}?resource=reservations&id={{reservation_id}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200 cancelled', () => pm.response.to.have.status(200));", "pm.test('Response status is cancelled', () => pm.expect(pm.response.json().data.status).to.eql('cancelled'));"] } }]
+    }
+  ]
+}
